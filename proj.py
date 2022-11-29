@@ -1,7 +1,7 @@
 # Python Imports
 import queue
 import random
-import threading
+from multiprocessing import Process, Pipe, Queue
 import time
 
 def func(x):
@@ -56,16 +56,16 @@ class group_math():
     def group_div(self, x, y):
         return (x * self.group_inv(self, y)) % self.group_size
 
-class client(threading.Thread):
+class client(Process):
     def __init__(self, thread_name, thread_ID):
-        threading.Thread.__init__(self)
+        super(client, self).__init__()
         self.thread_name = thread_name
         self.thread_ID = thread_ID
 
     def run(self):
         print(str(self.thread_name) + ": ID " + str(self.thread_ID))
 
-class party(threading.Thread):
+class party(Process):
     # Hard Coded Values to Start
     cipher = {
         4,
@@ -79,7 +79,7 @@ class party(threading.Thread):
     }
 
     def __init__(self, thread_name, thread_ID):
-        threading.Thread.__init__(self)
+        super(party, self).__init__()
         self.thread_name = thread_name
         self.thread_ID = thread_ID
 
@@ -87,26 +87,28 @@ class party(threading.Thread):
         # Get Encrypted Message & Share
         print(str(self.thread_name) + ": ID " + str(self.thread_ID))
 
-# Runtime Code
-print("Start")
 
-# Set Random Seed
-random.seed(time.time_ns())
+def main():
+    # Runtime Code
+    print("Start")
 
-# Client Stuff
-client_thread = client("Client", 0)
-client_thread.start()
+    # Set Random Seed
+    random.seed(time.time_ns())
 
-# Party Stuff
-parties = []
-for i in range(3):
-    party_thread = 
-    parties.append(party())
-party0 = party("Party 0", 0)
-party1 = party("Party 1", 1)
-party2 = party("Party 2", 2)
-party0.start()
-party1.start()
-party2.start()
+    # Client Stuff
+    client_prc = client("Client", 0)
+    client_prc.start()
 
-print("Exit")
+    # Party Stuff
+    parties = []
+    for i in range(3):
+        party_thread = party("Party " + str(i), i)
+        parties.append(party_thread)
+
+    for i in range(3):
+        parties[i].start()
+
+    print("Exit")
+
+if __name__ == "__main__":
+    main()
