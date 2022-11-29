@@ -1,60 +1,13 @@
 # Python Imports
 import queue
 import random
-from multiprocessing import Process, Pipe, Queue
 import time
 
-def func(x):
+from multiprocessing import Process, Pipe, Queue
+from elgamal import ElGamal
+from shamir import Shamir
+from group import ginv, gadd, gmul, gdiv
 
-    pass
-
-# Classes
-class shamir_sharing():
-    def __init__(self, secret, group_size) -> None:
-        # Save Function
-        self.function = func()
-
-        # Generate Alphas (Evaluation Points)
-        self.alpha = {
-            random.randint(1, group_size - 1),
-            random.randint(1, group_size - 1),
-            random.randint(1, group_size - 1),
-        }
-        # How to ensure no duplicate evaluation points?
-
-        # Save Secret
-        self.secret = secret
-
-    # Shamir Function
-    def func(self, x):
-        return self.x + self.secret
-
-    # Get evaluation point using party number
-    def get_alpha(self, num):
-        return self.alpha[num]
-
-    # Get a share, based on party number
-    def get_share(self, num):
-        return self.func(self.get_alpha(num))
-
-class group_math():
-    def __init__(self, group_size) -> None:
-        self.group_size = group_size
-
-    def group_mod(self, x):
-        return x % self.group_size
-
-    def group_inv(self, x):
-        return pow(x, (self.group_size - 2), self.group_size)
-
-    def group_add(self, x, y):
-        return (x + y) % self.group_size
-
-    def group_mul(self, x, y):
-        return (x * y) % self.group_size
-
-    def group_div(self, x, y):
-        return (x * self.group_inv(self, y)) % self.group_size
 
 class client(Process):
     def __init__(self, thread_name, thread_ID):

@@ -3,8 +3,6 @@
 import random
 from math import pow
  
-a = random.randint(2, 10)
-
 class ElGamal():
     def __init__(self):
         self.q = random.randint(pow(10, 20), pow(10, 50))
