@@ -1,19 +1,11 @@
 # Python Imports
-import queue
 import random
-from multiprocessing import Process, Pipe, Queue
+from multiprocessing import Process, Queue
 import time
-
-def func(x):
-
-    pass
 
 # Classes
 class shamir_sharing():
     def __init__(self, secret, group_size) -> None:
-        # Save Function
-        self.function = func()
-
         # Generate Alphas (Evaluation Points)
         self.alpha = {
             random.randint(1, group_size - 1),
@@ -37,25 +29,6 @@ class shamir_sharing():
     def get_share(self, num):
         return self.func(self.get_alpha(num))
 
-class group_math():
-    def __init__(self, group_size) -> None:
-        self.group_size = group_size
-
-    def group_mod(self, x):
-        return x % self.group_size
-
-    def group_inv(self, x):
-        return pow(x, (self.group_size - 2), self.group_size)
-
-    def group_add(self, x, y):
-        return (x + y) % self.group_size
-
-    def group_mul(self, x, y):
-        return (x * y) % self.group_size
-
-    def group_div(self, x, y):
-        return (x * self.group_inv(self, y)) % self.group_size
-
 class client(Process):
     def __init__(self, thread_name, thread_ID):
         super(client, self).__init__()
@@ -63,30 +36,71 @@ class client(Process):
         self.thread_ID = thread_ID
 
     def run(self):
+        # Hard Coded Values to Start
+        cipher = {
+            4,
+            0,
+            7
+        }
+        secret_share = {
+            4,
+            5,
+            6
+        }
+
+        for i in range(3):
+            queues[i].put(cipher[i], secret_share[i])
+
+        vals = []
+
+        for i in range(3):
+            vals.append(queues[i].get())
+
+        # Checking what we received is consistent
+        temp = vals[0]
+        for i in range(1, vals):
+            if temp != vals[i]:
+                # Wrong Outputs
+                print("Incorrect Values: " + str(temp) + " " + str(vals[i]))
+                temp = vals[i]
+                break
+        if temp == vals[0]:
+            # Consistent Outputs
+            print("Consistent Values")
+
+
         print(str(self.thread_name) + ": ID " + str(self.thread_ID))
 
 class party(Process):
-    # Hard Coded Values to Start
-    cipher = {
-        4,
-        0,
-        7
-    }
-    secret_share = {
-        4,
-        5,
-        6
-    }
-
     def __init__(self, thread_name, thread_ID):
         super(party, self).__init__()
         self.thread_name = thread_name
         self.thread_ID = thread_ID
 
     def run(self):
-        # Get Encrypted Message & Share
+        # Get Cipher & Message
+
+        # Get/Send c1
+
+        # Get/Send c2
+
+        # Multiply
+
+        # Decrypt m & c3
+
+        # Add decrypted m & c3
+
+        # Encrypt again
+
+        # Send Shares to Others
         print(str(self.thread_name) + ": ID " + str(self.thread_ID))
 
+queues = []
+
+P0_ID = 0
+P1_ID = 1
+P2_ID = 2
+C_ID = 3
 
 def main():
     # Runtime Code
@@ -95,9 +109,11 @@ def main():
     # Set Random Seed
     random.seed(time.time_ns())
 
-    # Client Stuff
-    client_prc = client("Client", 0)
-    client_prc.start()
+    # Set Up IPC
+    queues.append(Queue.queue())
+    queues.append(Queue.queue())
+    queues.append(Queue.queue())
+    queues.append(Queue.queue())
 
     # Party Stuff
     parties = []
@@ -107,6 +123,13 @@ def main():
 
     for i in range(3):
         parties[i].start()
+
+    for i in range(3):
+        parties[i].join()
+
+    # Client Stuff
+    client_prc = client("Client", C_ID)
+    client_prc.start()
 
     print("Exit")
 
