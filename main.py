@@ -30,15 +30,26 @@ class client(Process):
         
     def make_payment(self):
         # get algorand client
-        client = get_client()
-        compiled = donation_escrow(mnemonic_to_pk(client_mnemonic))
-        res, addr = compile_smart_signature(client, compiled)
-        amt = PAYMENT
-        result = payment_transaction(client_mnemonic, amt, addr, client)
-        # TODO: something with result
+        try:
+            client = get_client()
+            compiled = donation_escrow(mnemonic_to_pk(party_mnemonic))
+            res, addr = compile_smart_signature(client, compiled)
+            amt = PAYMENT
+            result = payment_transaction(client_mnemonic, amt, addr, client)
+            # TODO: something with result
+            self.q0.put((res, addr))
+            self.q1.put((res, addr))
+            self.q2.put((res, addr))
+        except Exception as e:
+            print("Cannot make payment")
+            print(e)
+            return -1
+        return 1
 
     def run(self):
-        
+        # Make smart contract transaction 
+        if self.make_payment() == -1:
+            return
         # Hard Coded Values to Start
         messages = [21, 7, 90]
         goal = ((messages[0] * messages[1]) + messages[2]) % self.q
@@ -107,15 +118,16 @@ class party(Process):
 
     def mpc(self, crash=False):
         # Get Cipher & Share of the Secret
+        
         c = None
         s = None
-        _, temp = self.qlist[self.proc_ID].get(timeout=5)
+        _, temp = self.qlist[self.proc_ID].get(timeout=10)
         if type(temp) == tuple:
             s = temp
-            _, c = self.qlist[self.proc_ID].get(timeout=5)
+            _, c = self.qlist[self.proc_ID].get(timeout=10)
         else:
             c = temp
-            _, s = self.qlist[self.proc_ID].get(timeout=5)
+            _, s = self.qlist[self.proc_ID].get(timeout=10)
         s = s[1]
         
         # Shamir my cipher
@@ -134,7 +146,7 @@ class party(Process):
         local_cipher_shares = [None] * 3
         for i in range(3):
             if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get(timeout=5)
+                id, val = self.qlist[self.proc_ID].get(timeout=10)
                 local_cipher_shares[id] = val
             else:
                 local_cipher_shares[self.proc_ID] = cipher_shares[self.proc_ID]
@@ -149,7 +161,7 @@ class party(Process):
         cipher_texts = [None] * 3
         for i in range(3):
             if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get(timeout=5)
+                id, val = self.qlist[self.proc_ID].get(timeout=10)
                 cipher_texts[id] = val
             else:
                 cipher_texts[i] = c
@@ -202,7 +214,7 @@ class party(Process):
         end_shares = [None] * 3
         for i in range(3):
             if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get(timeout=5)
+                id, val = self.qlist[self.proc_ID].get(timeout=10)
                 end_shares[id] = (self.eval_points[id], val)
             else:
                 end_shares[self.proc_ID] = (self.eval_points[self.proc_ID], end)
@@ -222,7 +234,16 @@ class party(Process):
 
         # Put value on smart contract?
     def run(self):
+        # block until the client sends money
+        client = get_client()
+        while self.qlist[self.proc_ID].empty():
+            continue
+        res, addr = self.qlist[self.proc_ID].get() 
+        # received transaction, compute
         self.mpc()
+        # receive payment
+        if self.proc_ID == 2:
+            lsig_payment_txn(res, addr, PAYMENT, mnemonic_to_pk(party_mnemonic), client)
         
 
 

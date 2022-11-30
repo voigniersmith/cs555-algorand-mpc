@@ -64,39 +64,40 @@ def donation_escrow(benefactor):
 def get_client():
     # initialize an algodClient
     client = algod.AlgodClient(algod_token, algod_address)
+    return client
 
-def mnemonic_to_pk():
-    return mnemonic.to_public_key(benefactor_mnemonic), mnemonic.to_public_key(sender_mnemonic)
+def mnemonic_to_pk(m):
+    return mnemonic.to_public_key(m)
 
-def main() :
-    # initialize an algodClient
-    algod_client = algod.AlgodClient(algod_token, algod_address)
+# def main() :
+#     # initialize an algodClient
+#     algod_client = algod.AlgodClient(algod_token, algod_address)
 
-    # define private keys
-    receiver_public_key = mnemonic.to_public_key(benefactor_mnemonic)
+#     # define private keys
+#     receiver_public_key = mnemonic.to_public_key(benefactor_mnemonic)
 
-    print("--------------------------------------------")
-    print("Compiling Donation Smart Signature......")
+#     print("--------------------------------------------")
+#     print("Compiling Donation Smart Signature......")
 
-    stateless_program_teal = donation_escrow(receiver_public_key)
-    escrow_result, escrow_address= compile_smart_signature(algod_client, stateless_program_teal)
+#     stateless_program_teal = donation_escrow(receiver_public_key)
+#     escrow_result, escrow_address= compile_smart_signature(algod_client, stateless_program_teal)
 
-    # print(result)
-    print("Program:", escrow_result)
-    print("hash: ", escrow_address)
+#     # print(result)
+#     print("Program:", escrow_result)
+#     print("hash: ", escrow_address)
 
-    print("--------------------------------------------")
-    print("Activating Donation Smart Signature......")
+#     print("--------------------------------------------")
+#     print("Activating Donation Smart Signature......")
 
-    # Activate escrow contract by sending 2 algo and 1000 microalgo for transaction fee from creator
-    amt = 2
-    payment_transaction(sender_mnemonic, amt, escrow_address, algod_client)
+#     # Activate escrow contract by sending 2 algo and 1000 microalgo for transaction fee from creator
+#     amt = 2
+#     payment_transaction(sender_mnemonic, amt, escrow_address, algod_client)
 
-    print("--------------------------------------------")
-    print("Withdraw from Donation Smart Signature......")
+#     print("--------------------------------------------")
+#     print("Withdraw from Donation Smart Signature......")
 
-    # Withdraws 1 ALGO from smart signature using logic signature.
-    withdrawal_amt = 2
-    lsig_payment_txn(escrow_result, escrow_address, withdrawal_amt, receiver_public_key, algod_client)
+#     # Withdraws 1 ALGO from smart signature using logic signature.
+#     withdrawal_amt = 2
+#     lsig_payment_txn(escrow_result, escrow_address, withdrawal_amt, receiver_public_key, algod_client)
 
-main()
+# main()
