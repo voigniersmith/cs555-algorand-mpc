@@ -6,7 +6,11 @@ import argparse
 from threading import Thread
 from multiprocessing import Process, Queue
 from elgamal import ElGamal
+from conf import party_mnemonic, client_mnemonic
+from algo_utils import get_client, mnemonic_to_pk, donation_escrow, compile_smart_signature, payment_transaction, lsig_payment_txn 
 from Crypto.Util import number
+
+PAYMENT = 10000 * 1000000
 
 # Client Process
 class client(Process):
@@ -23,8 +27,18 @@ class client(Process):
         self.eval_points = eval_points
         self.h = h
         self.q = q
+        
+    def make_payment(self):
+        # get algorand client
+        client = get_client()
+        compiled = donation_escrow(mnemonic_to_pk(client_mnemonic))
+        res, addr = compile_smart_signature(client, compiled)
+        amt = PAYMENT
+        result = payment_transaction(client_mnemonic, amt, addr, client)
+        # TODO: something with result
 
     def run(self):
+        
         # Hard Coded Values to Start
         messages = [21, 7, 90]
         goal = ((messages[0] * messages[1]) + messages[2]) % self.q

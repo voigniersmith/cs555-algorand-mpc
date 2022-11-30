@@ -65,6 +65,9 @@ def get_client():
     # initialize an algodClient
     client = algod.AlgodClient(algod_token, algod_address)
 
+def mnemonic_to_pk():
+    return mnemonic.to_public_key(benefactor_mnemonic), mnemonic.to_public_key(sender_mnemonic)
+
 def main() :
     # initialize an algodClient
     algod_client = algod.AlgodClient(algod_token, algod_address)
