@@ -1,6 +1,7 @@
 # Python Imports
 import random
 import time
+import argparse
 
 from threading import Thread
 from multiprocessing import Process, Queue
@@ -25,7 +26,7 @@ class client(Process):
 
     def run(self):
         # Hard Coded Values to Start
-        messages = [5, 3, 6]
+        messages = [21, 7, 90]
         goal = ((messages[0] * messages[1]) + messages[2]) % self.q
 
         # Generate k, which is private key
@@ -90,17 +91,17 @@ class party(Process):
         self.coeffs = coeffs
         self.eval_points = eval_points
 
-    def run(self):
+    def mpc(self, crash=False):
         # Get Cipher & Share of the Secret
         c = None
         s = None
-        _, temp = self.qlist[self.proc_ID].get()
+        _, temp = self.qlist[self.proc_ID].get(timeout=5)
         if type(temp) == tuple:
             s = temp
-            _, c = self.qlist[self.proc_ID].get()
+            _, c = self.qlist[self.proc_ID].get(timeout=5)
         else:
             c = temp
-            _, s = self.qlist[self.proc_ID].get()
+            _, s = self.qlist[self.proc_ID].get(timeout=5)
         s = s[1]
         
         # Shamir my cipher
@@ -119,7 +120,7 @@ class party(Process):
         local_cipher_shares = [None] * 3
         for i in range(3):
             if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get()
+                id, val = self.qlist[self.proc_ID].get(timeout=5)
                 local_cipher_shares[id] = val
             else:
                 local_cipher_shares[self.proc_ID] = cipher_shares[self.proc_ID]
@@ -134,7 +135,7 @@ class party(Process):
         cipher_texts = [None] * 3
         for i in range(3):
             if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get()
+                id, val = self.qlist[self.proc_ID].get(timeout=5)
                 cipher_texts[id] = val
             else:
                 cipher_texts[i] = c
@@ -187,7 +188,7 @@ class party(Process):
         end_shares = [None] * 3
         for i in range(3):
             if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get()
+                id, val = self.qlist[self.proc_ID].get(timeout=5)
                 end_shares[id] = (self.eval_points[id], val)
             else:
                 end_shares[self.proc_ID] = (self.eval_points[self.proc_ID], end)
@@ -206,6 +207,9 @@ class party(Process):
         self.qlist[3].put((self.proc_ID, end_res))
 
         # Put value on smart contract?
+    def run(self):
+        self.mpc()
+        
 
 
 P0_ID = 0
@@ -213,7 +217,7 @@ P1_ID = 1
 P2_ID = 2
 C_ID = 3
 
-def main():
+def main(t=0):
     # Runtime Code
     print("Main Start\n")
 
@@ -227,7 +231,7 @@ def main():
 
     # Set Globals
     coeffs = eg.coeff(2)
-    coeffs = [9]
+    coeffs = [0]
     eval_points = eg.get_eval_points(3)
     # eval_points = [1, 2, 3]
 
@@ -261,12 +265,32 @@ def main():
     party_proc = party("Party " + str(2), 2, q0, q1, q2, qc, coeffs, eval_points, q, g)
     parties.append(party_proc)
 
-    for i in range(3):
-        parties[i].start()
+    try: 
+        for i in range(3):
+            parties[i].start()
 
-    # Client Stuff
-    client_prc = client("Client", C_ID, q0, q1, q2, qc, coeffs, eval_points, h, q, g)
-    client_prc.start()
+        # Client Stuff
+        client_prc = client("Client", C_ID, q0, q1, q2, qc, coeffs, eval_points, h, q, g)
+        client_prc.start()
+        if t != 0:
+            print("Sleeping {} seconds".format(t))
+            time.sleep(t)
+            print("Alarm Triggered! Killing p0")
+            parties[0].kill()
+            
+    except:
+        # Timeout occur?
+        print("exception!")
+        for i in range(3):
+            parties[i].kill()
+            
+        # for i in range(3):
+        #     parties[i].start(True)
+
+        # # Client Stuff
+        # client_prc = client("Client", C_ID, q0, q1, q2, qc, coeffs, eval_points, h, q, g)
+        # client_prc.start()
+        
 
     # Wait for everything to finish
     for i in range(3):
@@ -276,4 +300,13 @@ def main():
     print("\nMain Exit")
 
 if __name__ == "__main__":
-    main()
+ 
+    # Initialize parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-k", "--kill", help = "time (sec) before adversary crashes")
+    args = parser.parse_args()
+    
+    alarm = 0
+    if args.kill:
+        alarm = args.kill
+    main(alarm)
