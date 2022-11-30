@@ -152,7 +152,7 @@ class party(Process):
         print("\nParty {} Communication:\n\tlocal_cipher_shares: {}\n\tcipher_texts: {}"
             .format(self.proc_ID, local_cipher_shares, cipher_texts))
 
-        strat = 0.5
+        strat = 1
 
         if strat == 0:
             # Strategy 0 -- No Sharing & Full Decrypt (WORKS!!)
@@ -207,9 +207,9 @@ class party(Process):
             # Multiplying Using Cipher Shares
             mul_shared = self.eg.gmul(local_cipher_shares[0][1], local_cipher_shares[1][1])
 
-            # Decrypt The Share of The Product (Do we do it twice?)
+            # Decrypt The Share of The Product
             dec_mul_shared = self.eg.gdiv(mul_shared, s)
-            dec_mul_shared = self.eg.gdiv(mul_shared, s)
+            dec_mul_shared = self.eg.gdiv(dec_mul_shared, s)
 
             # Re-encypt for "addition"
             mul_pow = self.eg.power(self.g, dec_mul_shared, self.q)
