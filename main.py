@@ -5,6 +5,7 @@ import time
 from threading import Thread
 from multiprocessing import Process, Queue
 from elgamal import ElGamal
+from Crypto.Util import number
 
 # Client Process
 class client(Process):
@@ -28,8 +29,8 @@ class client(Process):
         goal = ((messages[0] * messages[1]) + messages[2]) % self.q
 
         # Generate k, which is private key
-        # self.k = self.eg.gen_key(self.q)
-        self.k = 9
+        self.k = self.eg.gen_key(self.q)
+        # self.k = 9
 
         # Generate h^k, which is secret
         self.s = self.eg.power(self.h, self.k, self.q)
@@ -217,7 +218,8 @@ def main():
 
     # Set Random Seed
     random.seed(time.time_ns())
-    q = 11
+    q = number.getPrime(1024)
+    # q = 11
     g = random.randint(2, q)
     # g = 5
     eg = ElGamal(q, g)
@@ -226,7 +228,7 @@ def main():
     coeffs = eg.coeff(2)
     coeffs = [0]
     eval_points = eg.get_eval_points(3)
-    eval_points = [1, 2, 3]
+    # eval_points = [1, 2, 3]
 
     # Setup IPC
     q0 = Queue(10)
@@ -237,9 +239,9 @@ def main():
     # Party Stuff
     parties = []
     a = eg.gen_key(q)
-    a = 0
+    # a = 0
     h = pow(g, a, q)
-    h = 4
+    # h = 4
 
     print("\nMain Initialize Values:")
     print("\ta: {}, h: {}, g: {}, q: {}".format(a, h, g, q))
