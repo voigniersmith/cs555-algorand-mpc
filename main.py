@@ -24,11 +24,11 @@ class client(Process):
 
     def run(self):
         # Hard Coded Values to Start
-        messages = [5, 0, 6]
+        messages = [5, 3, 6]
         goal = ((messages[0] * messages[1]) + messages[2]) % self.q
 
         # Generate k, which is private key
-        self.k = self.eg.gen_key(self.q)
+        # self.k = self.eg.gen_key(self.q)
         self.k = 9
 
         # Generate h^k, which is secret
@@ -154,9 +154,9 @@ class party(Process):
         elif self.proc_ID == 2:
             m_loc_share = m_shares[2]
 
-        # dec_c0 = gdiv(local_cipher_shares[0][1], s)
-        # dec_c1 = gdiv(local_cipher_shares[1][1], s)
-        # dec_m = gmul(dec_c0, dec_c1)
+        dec_c0 = self.eg.gdiv(local_cipher_shares[0][1], s)
+        dec_c1 = self.eg.gdiv(local_cipher_shares[1][1], s)
+        dec_m = self.eg.gmul(dec_c0, dec_c1)
 
         # Decrypt m & c3
         # dec_m = gdiv(m, s)
@@ -164,9 +164,11 @@ class party(Process):
         dec_c2 = self.eg.gdiv(local_cipher_shares[2][1], s)
 
         # Add decrypted m & c3
-        res = self.eg.gadd(m_loc_share[1], dec_c2)
+        res = self.eg.gadd(self.eg.gdiv(m_loc_share[1], s), dec_c2)
         print("\nParty {} res: {}, m_loc_share[1]: {}, dec_c2: {}"
             .format(self.proc_ID, res, m_loc_share[1], dec_c2))
+
+        res = self.eg.gadd(dec_m, dec_c2)
 
         # Encrypt again
         end = self.eg.gmul(res, s)
@@ -217,12 +219,12 @@ def main():
     random.seed(time.time_ns())
     q = 11
     g = random.randint(2, q)
-    g = 5
+    # g = 5
     eg = ElGamal(q, g)
 
     # Set Globals
     coeffs = eg.coeff(2)
-    coeffs = [1]
+    coeffs = [0]
     eval_points = eg.get_eval_points(3)
     eval_points = [1, 2, 3]
 
@@ -235,7 +237,7 @@ def main():
     # Party Stuff
     parties = []
     a = eg.gen_key(q)
-    a = 3
+    a = 0
     h = pow(g, a, q)
     h = 4
 
@@ -253,7 +255,7 @@ def main():
     parties.append(party_proc)
 
     # Party 2
-    party_proc = party("Party " + str(2), 2, q0, q1, q2, qc, coeffs, eval_points, g, g)
+    party_proc = party("Party " + str(2), 2, q0, q1, q2, qc, coeffs, eval_points, q, g)
     parties.append(party_proc)
 
     for i in range(3):
