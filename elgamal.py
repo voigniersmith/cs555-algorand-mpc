@@ -17,7 +17,7 @@ class ElGamal():
 
         # self.key = self.gen_key(self.q)# Private key for receiver
         # self.h = self.power(self.g, self.key, self.q)
-        
+
     def gcd(self, a, b):
         if a < b:
             return self.gcd(b, a)
@@ -165,7 +165,7 @@ class ElGamal():
         while len(temp) != n:
             temp.add(random.randrange(1, self.q))
         return list(temp)
-    
+
     def generate_shares(self, coefficients, secret, eval_points, pid):
         """
         Split given `secret` into `n` shares with minimum threshold
@@ -173,12 +173,12 @@ class ElGamal():
         """
         coefficients = list(coefficients)
         coefficients.append(secret)
-        print("\nPID: {} in Generate Shares BEFORE\n\tCoefficients: {}\n\tsecret: {}\n\teval_points: {}"
-            .format(pid, coefficients, secret, eval_points))
+        # print("\nPID: {} in Generate Shares BEFORE\n\tCoefficients: {}\n\tsecret: {}\n\teval_points: {}"
+        #     .format(pid, coefficients, secret, eval_points))
         # return [(x, self.polynom(x, coefficients)) for x in list(eval_points)]
         shares = [(x, self.polynom(x, coefficients)) for x in list(eval_points)]
-        print("\nPID: {} in Generate Shares\n\tCoefficients: {}\n\tsecret: {}\n\teval_points: {}\n\tshares: {}"
-            .format(pid, coefficients, secret, eval_points, shares))
+        # print("\nPID: {} in Generate Shares\n\tCoefficients: {}\n\tsecret: {}\n\teval_points: {}\n\tshares: {}"
+        #     .format(pid, coefficients, secret, eval_points, shares))
         # print("\nShares: {}\n".format(shares))
         return shares
 

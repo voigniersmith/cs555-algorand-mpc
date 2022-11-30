@@ -73,7 +73,7 @@ def get_eval_points(n):
     # while len(temp) != 3:
     #     temp.add(random.randrange(1, FIELD_SIZE))
     # return list(temp)
- 
+
 def generate_shares(coefficients, secret, eval_points):
     """
     Split given `secret` into `n` shares with minimum threshold
