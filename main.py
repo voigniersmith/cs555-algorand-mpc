@@ -225,7 +225,7 @@ def main():
 
     # Set Globals
     coeffs = eg.coeff(2)
-    coeffs = [0]
+    coeffs = [9]
     eval_points = eg.get_eval_points(3)
     eval_points = [1, 2, 3]
 
