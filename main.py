@@ -24,7 +24,7 @@ class client(Process):
 
     def run(self):
         # Hard Coded Values to Start
-        messages = [5, 0, 6]
+        messages = [5, 3, 6]
         goal = ((messages[0] * messages[1]) + messages[2]) % self.q
 
         # Generate k, which is private key
@@ -142,7 +142,7 @@ class party(Process):
             .format(self.proc_ID, local_cipher_shares, cipher_texts))
 
         # Multiply
-        # m = gmul(local_cipher_shares[0][1], local_cipher_shares[1][1])
+        # m = self.eg.gmul(local_cipher_shares[0][1], local_cipher_shares[1][1])
         m = self.eg.gmul(cipher_texts[0], cipher_texts[1])
         m_shares = self.eg.generate_shares(list(self.coeffs), m, list(self.eval_points), self.proc_ID)
 
@@ -165,8 +165,8 @@ class party(Process):
 
         # Add decrypted m & c3
         res = self.eg.gadd(m_loc_share[1], dec_c2)
-        print("\nParty {} res: {}, m_loc_share[1]: {}, dec_c2: {}"
-            .format(self.proc_ID, res, m_loc_share[1], dec_c2))
+        # print("\nParty {} res: {}, m_loc_share[1]: {}, dec_c2: {}"
+        #     .format(self.proc_ID, res, m_loc_share[1], dec_c2))
 
         # Encrypt again
         end = self.eg.gmul(res, s)
@@ -222,7 +222,7 @@ def main():
 
     # Set Globals
     coeffs = eg.coeff(2)
-    coeffs = [1]
+    coeffs = [3]
     eval_points = eg.get_eval_points(3)
     eval_points = [1, 2, 3]
 
@@ -253,7 +253,7 @@ def main():
     parties.append(party_proc)
 
     # Party 2
-    party_proc = party("Party " + str(2), 2, q0, q1, q2, qc, coeffs, eval_points, g, g)
+    party_proc = party("Party " + str(2), 2, q0, q1, q2, qc, coeffs, eval_points, q, g)
     parties.append(party_proc)
 
     for i in range(3):

@@ -135,7 +135,7 @@ class ElGamal():
         # Loop through reversed list, so that indices from enumerate match the
         # actual coefficient indices
         for coefficient_index, coefficient_value in enumerate(list(coefficients)[::-1]):
-            point = self.gadd(point, self.gmul(x ** coefficient_index, coefficient_value))
+            point = self.gadd(point, self.gmul(x ** coefficient_index % self.q, coefficient_value))
         return point
     
     
@@ -173,12 +173,10 @@ class ElGamal():
         """
         coefficients = list(coefficients)
         coefficients.append(secret)
-        print("\nPID: {} in Generate Shares BEFORE\n\tCoefficients: {}\n\tsecret: {}\n\teval_points: {}"
-            .format(pid, coefficients, secret, eval_points))
         # return [(x, self.polynom(x, coefficients)) for x in list(eval_points)]
         shares = [(x, self.polynom(x, coefficients)) for x in list(eval_points)]
-        print("\nPID: {} in Generate Shares\n\tCoefficients: {}\n\tsecret: {}\n\teval_points: {}\n\tshares: {}"
-            .format(pid, coefficients, secret, eval_points, shares))
+        # print("\nPID: {} in Generate Shares\n\tCoefficients: {}\n\tsecret: {}\n\teval_points: {}\n\tshares: {}"
+        #     .format(pid, coefficients, secret, eval_points, shares))
         # print("\nShares: {}\n".format(shares))
         return shares
 
