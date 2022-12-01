@@ -13,8 +13,6 @@
 - [Definitions](#definitions)
 - [Running the Debugger](#running-the-debugger)
 
-***
-
 ## Usage
 
 Welcome to our cryptographic calculator.
@@ -58,8 +56,6 @@ python3 main.py -h
 
 Use the github i guess.
 
-***
-
 ## Languages & Libraries
 
 Languages
@@ -76,13 +72,9 @@ Libraries
 - pyteal
 - Crypto.Util
 
-***
-
 ## PyTeal
 
 Edwin please
-
-***
 
 ## Protocol
 
@@ -99,8 +91,6 @@ To do this, two protocols are used, ElGamal & Shamir's Secret Sharing.
        - Each party interpolates the result and notifies the client
   5. The client takes the encrypted result and decrypts it for the information.
 
-***
-
 ## Security
 
 *Goal*  
@@ -110,8 +100,6 @@ TODO: I also think there should be something about how an active adversary would
 
 *Analysis*  
 How do I do a security analysis on this
-
-***
 
 ## Virtual Python Environment
 
@@ -125,8 +113,6 @@ source ./venv/bin/activate
 # Stop a venv
 deactivate
 ```
-
-***
 
 ## PyTeal Course Comands
 
@@ -156,8 +142,6 @@ goal app read --global --app-id <application index>
 goal app call --app-id 8 --from $ONE --app-arg "str:inc"
 ```
 
-***
-
 ## Definitions
 
 - Application Account -> Where the ALGOS (currency) go and are then from
@@ -165,8 +149,6 @@ goal app call --app-id 8 --from $ONE --app-arg "str:inc"
 - tt -> Teal Type, there are only 2
   - tt == 2 -> uint64
   - tt == 1 -> byteslice
-
-***
 
 ## Running the Debugger
 
