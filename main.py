@@ -88,18 +88,31 @@ class client(Process):
         except Exception as e:
             print("Cannot make payment")
             print(e)
-            return -1
-        return 1
+            return -1, -1
+        return res, addr
 
     def run(self):
+        res = None
+        addr = None
+        if self.algo:
+            # Make smart contract transaction 
+            res, addr = self.make_payment()
+            if res == -1:
+                return
+        
+        if self.send_stuff() == -1:
+            # party died
+            time.sleep(3)
+            self.q0.put((res, addr))
+            self.q1.put((res, addr))
+            self.q2.put((res, addr))
+            self.send_stuff()
+        
+
+    def send_stuff(self):
         # Setup Interrupt Handlers
         signal.signal(signal.SIGINT, keyboard_int_handler)
 
-        if self.algo:
-            # Make smart contract transaction 
-            if self.make_payment() == -1:
-                return
-                
         # Hard Coded Values to Start
         # messages = [21, 7, 90]
         messages = [random.randint(0, 99), random.randint(0, 99), random.randint(0, 99)]
@@ -152,7 +165,8 @@ class client(Process):
 
         if vals[0] == -1:
             # TODO: Remove Money
-            os.kill(current_process().pid, signal.SIGTERM)
+            return -1
+            # os.kill(current_process().pid, signal.SIGTERM)
             
 
         # print("\nClient Final Check:")
