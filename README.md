@@ -13,9 +13,9 @@
 - [Definitions](#definitions)
 - [Running the Debugger](#running-the-debugger)
 
-## Usage
-
 ***
+
+## Usage
 
 Welcome to our cryptographic calculator.
 
@@ -56,13 +56,11 @@ python3 main.py -h
 
 ## Installation
 
-***
-
 Use the github i guess.
 
-## Languages & Libraries
-
 ***
+
+## Languages & Libraries
 
 Languages
 
@@ -78,15 +76,15 @@ Libraries
 - pyteal
 - Crypto.Util
 
-## PyTeal
-
 ***
+
+## PyTeal
 
 Edwin please
 
-## Protocol
-
 ***
+
+## Protocol
 
 To do this, two protocols are used, ElGamal & Shamir's Secret Sharing.
 
@@ -101,9 +99,9 @@ To do this, two protocols are used, ElGamal & Shamir's Secret Sharing.
        - Each party interpolates the result and notifies the client
   5. The client takes the encrypted result and decrypts it for the information.
 
-## Security
-
 ***
+
+## Security
 
 *Goal*  
 No party should be able to learn anything about $m_1$, $m_2$, $m_3$, $(m_1 \cdot m_2)$, or $(m_1 \cdot m_2) + m_3$.  
@@ -113,9 +111,9 @@ TODO: I also think there should be something about how an active adversary would
 *Analysis*  
 How do I do a security analysis on this
 
-## Virtual Python Environment
-
 ***
+
+## Virtual Python Environment
 
 ```python
 # Initial venv setup
@@ -128,9 +126,9 @@ source ./venv/bin/activate
 deactivate
 ```
 
-## PyTeal Course Comands
-
 ***
+
+## PyTeal Course Comands
 
 ```bash
 # Setting up docker containers
@@ -158,9 +156,9 @@ goal app read --global --app-id <application index>
 goal app call --app-id 8 --from $ONE --app-arg "str:inc"
 ```
 
-## Definitions
-
 ***
+
+## Definitions
 
 - Application Account -> Where the ALGOS (currency) go and are then from
 
@@ -168,9 +166,9 @@ goal app call --app-id 8 --from $ONE --app-arg "str:inc"
   - tt == 2 -> uint64
   - tt == 1 -> byteslice
 
-## Running the Debugger
-
 ***
+
+## Running the Debugger
 
 While inside an application to generate a dry run for a debugger
 
