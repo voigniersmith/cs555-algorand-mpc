@@ -96,9 +96,9 @@ To do this, two protocols are used, ElGamal & Shamir's Secret Sharing.
 - The system should tolerate a single crash
 
 *Analysis*  
-Our system uses MPC on the encrypted values that $P_1$, $P_2$, and $P_3$ receive. All values $c_1$, $c_2$, and $c_3$ are shared between the parties using shares. The shares are shamir shared with a function with degree at most $t = 1$. The MPC step includes decryption of cipher shares, computation using those shares, and encrypting the final values before sending messages to the client.
+Our system uses MPC on the encrypted values that $P_1$, $P_2$, and $P_3$ receive. All values $c_1$, $c_2$, and $c_3$ are ElGamal encrypted and are shared between the parties using shares. The shares are Shamir shared with a function with degree at most $t = 1$. The MPC step includes decryption of cipher shares, computation using those shares, and encryption of the final values before sending the results to the client.
 
-The Client must create an escrow transaction and share the address of the escrow with the parties. The transaction forces the escrow to contain 10,000 Algorand and the party to have enough Algorand in the client account. The client would not be able to send an escrow address to the client if it’s not created, ensuring the client cannot get $(m_1 \cdot m_2) + m_3$ without paying. The party will be able to withdraw the money using the escrow address.
+The Client must create an escrow transaction and share the address of the escrow with the parties. The transaction forces the escrow to contain 10,000 Algorand and the party to have enough Algorand in the client account. The client would not be able to send an escrow address to the parties if it’s not created, ensuring the client cannot get $(m_1 \cdot m_2) + m_3$ without paying. The party will be able to withdraw the money using the escrow address.
 
 ## Virtual Python Environment
 
