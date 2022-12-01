@@ -2,8 +2,9 @@
 import random
 import time
 import argparse
-import signal
 import os
+import sys
+import signal
 
 from multiprocessing import Process, Queue, current_process
 from elgamal import ElGamal
@@ -122,11 +123,11 @@ class client(Process):
         # Encrypt the messages
         cipher = [self.eg.gmul(messages[i], self.s) for i in range(3)]
 
-        print("\nClient Initialization") 
-        print("\tk: {}\ts: {}".format(self.k, self.s))
-        print("\tmessages[0]: {}\tmessages[1]: {}\tmessages[2]: {}".format(messages[0], messages[1], messages[2]))
-        print("\ts_shares[0]: {}\ts_shares[1]: {}\ts_shares[2]: {}".format(s_shares[0], s_shares[1], s_shares[2]))
-        print("\tcipher[0]: {}\tcipher[1]: {}\tcipher[2]: {}".format(cipher[0], cipher[1], cipher[2]))
+        # print("\nClient Initialization") 
+        # print("\tk: {}\ts: {}".format(self.k, self.s))
+        # print("\tmessages[0]: {}\tmessages[1]: {}\tmessages[2]: {}".format(messages[0], messages[1], messages[2]))
+        # print("\ts_shares[0]: {}\ts_shares[1]: {}\ts_shares[2]: {}".format(s_shares[0], s_shares[1], s_shares[2]))
+        # print("\tcipher[0]: {}\tcipher[1]: {}\tcipher[2]: {}".format(cipher[0], cipher[1], cipher[2]))
 
         # Send Secret to Each
         self.q0.put((self.proc_ID, cipher[0]))
@@ -141,11 +142,23 @@ class client(Process):
         vals = []
 
         for i in range(3):
-            _, val = self.qc.get()
+            try:
+                _, val = self.qc.get(timeout=10)
+            except:
+                pass
             vals.append(val)
+            if val == -1:
+                break
+
+        if vals[0] == -1:
+            # TODO: Remove Money
+            os.kill(current_process().pid, signal.SIGTERM)
+            
 
         # print("\nClient Final Check:")
-        # print("\tvals[0]: {}\tvals[1]: {}\tvals[2]: {}".format(vals[0], vals[1], vals[2]))
+        # for i in range(len(vals)):
+        #     print("\tvals[{}]: {}".format(i, vals[i]), end="")
+        # print("")
 
         # Checking what we received is consistent
         temp = vals[0]
@@ -178,8 +191,9 @@ class party(Process):
         self.peek = adv_values[2]
 
     def fail_func(self):
-        # What do we do here? How do we handle it?
-        pass
+        self.qlist[3].put((self.proc_ID, -1))
+        time.sleep(2)
+        os.kill(current_process().pid, signal.SIGTERM)
 
     def mpc(self):
         # Get Cipher & Share of the Secret
@@ -187,13 +201,13 @@ class party(Process):
         s = None
 
         try:
-            _, temp = self.qlist[self.proc_ID].get(timeout=10)
+            _, temp = self.qlist[self.proc_ID].get(timeout=3)
             if type(temp) == tuple:
                 s = temp
-                _, c = self.qlist[self.proc_ID].get(timeout=10)
+                _, c = self.qlist[self.proc_ID].get(timeout=3)
             else:
                 c = temp
-                _, s = self.qlist[self.proc_ID].get(timeout=10)
+                _, s = self.qlist[self.proc_ID].get(timeout=3)
             s = s[1]
 
         except Exception as e:
@@ -221,7 +235,7 @@ class party(Process):
             local_cipher_shares = [None] * 3
             for i in range(3):
                 if i != self.proc_ID:
-                    id, val = self.qlist[self.proc_ID].get(timeout=10)
+                    id, val = self.qlist[self.proc_ID].get(timeout=3)
                     local_cipher_shares[id] = val
                 else:
                     local_cipher_shares[self.proc_ID] = cipher_shares[self.proc_ID]
@@ -264,7 +278,7 @@ class party(Process):
             end_shares = [None] * 3
             for i in range(3):
                 if i != self.proc_ID:
-                    id, val = self.qlist[self.proc_ID].get(timeout=10)
+                    id, val = self.qlist[self.proc_ID].get(timeout=3)
                     end_shares[id] = (self.eval_points[id], val)
                 else:
                     end_shares[self.proc_ID] = (self.eval_points[self.proc_ID], end)
@@ -296,7 +310,7 @@ class party(Process):
             client = get_client()
             while self.qlist[self.proc_ID].empty():
                 continue
-            res, addr = self.qlist[self.proc_ID].get(timeout=10) 
+            res, addr = self.qlist[self.proc_ID].get(timeout=3) 
 
             # received transaction, compute
             self.mpc()
@@ -315,9 +329,10 @@ class party(Process):
 '''
 def main(kill=None, stage=None, algo=True, messages=None, peek=None):
     # Runtime Code
-    print("\nStart\n")
+    print("\nStart")
 
     # Preparation
+    doagain = False
     q, g = prepare_elgamal()
     eg = ElGamal(q, g)
     coeffs, eval_points = prepare_shamir(eg)
@@ -370,8 +385,47 @@ def main(kill=None, stage=None, algo=True, messages=None, peek=None):
     except Exception as e:
         # Exception Happened
         print("Exception:\n{}".format(e))
+    
+    # Check for failure
+    for i in range(4):
+        while not queues[i].empty():
+            _, val = queues[i].get()
+            if val == -1:
+                doagain = True
+
+    if doagain:
+        # Force alive
+        adv_values = (-1, -1, peek)
+
+        # Remove old parties
+        parties.clear()
+
+        # Restart Function
+        # Party 0
+        party_proc = party("Party " + str(0), 0, queues, shamir_info, public_info, algo, adv_values)
+        parties.append(party_proc)
+
+        # Party 1
+        party_proc = party("Party " + str(1), 1, queues, shamir_info, public_info, algo, adv_values)
+        parties.append(party_proc)
+
+        # Party 2
+        party_proc = party("Party " + str(2), 2, queues, shamir_info, public_info, algo, adv_values)
+        parties.append(party_proc)
+
+        # Start the Parties
         for i in range(3):
-            os.kill(parties[i].pid, signal.SIGTERM)
+            parties[i].start()
+
+        # Client Create & Start
+        client_prc = client("Client", C_ID, queues, shamir_info, public_info, algo, messages)
+        client_prc.start()
+
+        # Wait for everything to finish
+        for i in range(3):
+            parties[i].join()
+        client_prc.join()
+
 
     print("\nExit")
 
