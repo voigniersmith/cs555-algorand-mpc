@@ -2,6 +2,8 @@
 import random
 import time
 import argparse
+import signal
+import os
 
 from multiprocessing import Process, Queue, current_process
 from elgamal import ElGamal
@@ -44,6 +46,11 @@ def prepare_shamir(eg):
     eval_points = eg.get_eval_points(3)
     return coeffs, eval_points
 
+def keyboard_int_handler(signum, frame):
+    signame = signal.Signals(signum).name
+    print("Process {} stopped by {}"
+        .format(current_process().pid, signame))
+    os.kill(current_process().pid, signal.SIGTERM)
 
 '''
     Client Class
@@ -84,6 +91,9 @@ class client(Process):
         return 1
 
     def run(self):
+        # Setup Interrupt Handlers
+        signal.signal(signal.SIGINT, keyboard_int_handler)
+
         if self.algo:
             # Make smart contract transaction 
             if self.make_payment() == -1:
@@ -167,21 +177,30 @@ class party(Process):
         self.stage = adv_values[1]
         self.peek = adv_values[2]
 
+    def fail_func(self):
+        # What do we do here? How do we handle it?
+        pass
+
     def mpc(self):
         # Get Cipher & Share of the Secret
         c = None
         s = None
-        _, temp = self.qlist[self.proc_ID].get()
-        if type(temp) == tuple:
-            s = temp
-            _, c = self.qlist[self.proc_ID].get()
-        else:
-            c = temp
-            _, s = self.qlist[self.proc_ID].get()
-        s = s[1]
+
+        try:
+            _, temp = self.qlist[self.proc_ID].get(timeout=10)
+            if type(temp) == tuple:
+                s = temp
+                _, c = self.qlist[self.proc_ID].get(timeout=10)
+            else:
+                c = temp
+                _, s = self.qlist[self.proc_ID].get(timeout=10)
+            s = s[1]
+
+        except Exception as e:
+            self.fail_func()
 
         if self.to_kill == self.proc_ID and self.stage == 0:
-            current_process().kill()
+            os.kill(current_process().pid, signal.SIGTERM)
         
         # Shamir my cipher
         cipher_shares = self.eg.generate_shares(list(self.coeffs), c, self.eval_points, self.proc_ID)
@@ -197,17 +216,21 @@ class party(Process):
                 self.qlist[i].put((self.proc_ID, cipher_shares[i]))
                 time.sleep(1)
 
-        # Get my cipher shares
-        local_cipher_shares = [None] * 3
-        for i in range(3):
-            if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get(timeout=10)
-                local_cipher_shares[id] = val
-            else:
-                local_cipher_shares[self.proc_ID] = cipher_shares[self.proc_ID]
+        try:
+            # Get my cipher shares
+            local_cipher_shares = [None] * 3
+            for i in range(3):
+                if i != self.proc_ID:
+                    id, val = self.qlist[self.proc_ID].get(timeout=10)
+                    local_cipher_shares[id] = val
+                else:
+                    local_cipher_shares[self.proc_ID] = cipher_shares[self.proc_ID]
+
+        except Exception as e:
+            self.fail_func()
 
         if self.to_kill == self.proc_ID and self.stage == 1:
-            current_process().kill()
+            os.kill(current_process().pid, signal.SIGTERM)
 
         # Multiply
         m = self.eg.gmul(local_cipher_shares[0][1], local_cipher_shares[1][1])
@@ -236,20 +259,24 @@ class party(Process):
             if i != self.proc_ID:
                 self.qlist[i].put((self.proc_ID, end))
 
-        # Receive end shares
-        end_shares = [None] * 3
-        for i in range(3):
-            if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get(timeout=10)
-                end_shares[id] = (self.eval_points[id], val)
-            else:
-                end_shares[self.proc_ID] = (self.eval_points[self.proc_ID], end)
+        try:
+            # Receive end shares
+            end_shares = [None] * 3
+            for i in range(3):
+                if i != self.proc_ID:
+                    id, val = self.qlist[self.proc_ID].get(timeout=10)
+                    end_shares[id] = (self.eval_points[id], val)
+                else:
+                    end_shares[self.proc_ID] = (self.eval_points[self.proc_ID], end)
+
+        except Exception as e:
+            self.fail_func()
 
         # Combine results
         end_res = self.eg.reconstruct(end_shares)
 
         if self.to_kill == self.proc_ID and self.stage == 2:
-            current_process().kill()
+            os.kill(current_process().pid, signal.SIGTERM)
 
         # Print
         if self.proc_ID == self.peek or self.peek == 3:
@@ -261,12 +288,15 @@ class party(Process):
 
 
     def run(self):
+        # Set up interrupt handlers
+        signal.signal(signal.SIGINT, keyboard_int_handler)
+
         if self.algo:
             # block until the client sends money
             client = get_client()
             while self.qlist[self.proc_ID].empty():
                 continue
-            res, addr = self.qlist[self.proc_ID].get() 
+            res, addr = self.qlist[self.proc_ID].get(timeout=10) 
 
             # received transaction, compute
             self.mpc()
@@ -331,18 +361,17 @@ def main(kill=None, stage=None, algo=True, messages=None, peek=None):
         # Client Create & Start
         client_prc = client("Client", C_ID, queues, shamir_info, public_info, algo, messages)
         client_prc.start()
+
+        # Wait for everything to finish
+        for i in range(3):
+            parties[i].join()
+        client_prc.join()
             
     except Exception as e:
         # Exception Happened
         print("Exception:\n{}".format(e))
         for i in range(3):
-            parties[i].kill()
-    
-    else:
-        # Wait for everything to finish
-        for i in range(3):
-            parties[i].join()
-        client_prc.join()
+            os.kill(parties[i].pid, signal.SIGTERM)
 
     print("\nExit")
 
@@ -383,5 +412,8 @@ if __name__ == "__main__":
         peek = int(args.peek)
     if args.stage:
         stage = int(args.stage)
+
+    # Set up signal handlers
+    signal.signal(signal.SIGINT, keyboard_int_handler)
     
     main(kill, stage, algo, messages, peek)
