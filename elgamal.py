@@ -31,8 +31,8 @@ class ElGamal():
     
         # key = random.randint(pow(10, 20), q)
         key = random.randint(0, q)
-        while self.gcd(q, key) != 1:
-            key = random.randint(pow(10, 20), q)
+        # while self.gcd(q, key) != 1:
+        #     key = random.randint(pow(10, 20), q)
         # key = 6
         return key
     

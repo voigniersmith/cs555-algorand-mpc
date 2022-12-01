@@ -2,31 +2,76 @@
 import random
 import time
 import argparse
+import os
+import sys
+import signal
 
-from threading import Thread
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, current_process
 from elgamal import ElGamal
 from conf import party_mnemonic, client_mnemonic
 from algo_utils import get_client, mnemonic_to_pk, donation_escrow, compile_smart_signature, payment_transaction, lsig_payment_txn 
 from Crypto.Util import number
 
-PAYMENT = 10000 * 1000000
+'''
+    TODO:
+    - Need to add kill scenario 3, after receiving client payment
+'''
 
-# Client Process
+PAYMENT = 10000 * 1000000
+C_ID = 3
+
+'''
+    Functions
+'''
+def generators(n):
+    s = set(range(1, n))
+    results = []
+    for a in s:
+        g = set()
+        for x in s:
+            g.add((a**x) % n)
+        if g == s:
+            results.append(a)
+    return results
+
+def prepare_elgamal():
+    random.seed(time.time_ns())
+    q = number.getPrime(10)
+    g = generators(q)
+    g = g[random.randint(0, len(g))]
+    return q, g
+    
+def prepare_shamir(eg):
+    coeffs = eg.coeff(2)
+    coeffs = [0]
+    eval_points = eg.get_eval_points(3)
+    return coeffs, eval_points
+
+def keyboard_int_handler(signum, frame):
+    signame = signal.Signals(signum).name
+    print("Process {} stopped by {}"
+        .format(current_process().pid, signame))
+    os.kill(current_process().pid, signal.SIGTERM)
+
+'''
+    Client Class
+'''
 class client(Process):
-    def __init__(self, proc_name, proc_ID, q0, q1, q2, qc, coeffs, eval_points, h, q, g):
+    def __init__(self, proc_name, proc_ID, queues, shamir, public, algo, messages):
         super(client, self).__init__()
         self.proc_name = proc_name
         self.proc_ID = proc_ID
-        self.eg = ElGamal(q, g)
-        self.q0 = q0
-        self.q1 = q1
-        self.q2 = q2
-        self.qc = qc
-        self.coeffs = coeffs
-        self.eval_points = eval_points
-        self.h = h
-        self.q = q
+        self.eg = ElGamal(public[0], public[1])
+        self.q0 = queues[0]
+        self.q1 = queues[1]
+        self.q2 = queues[2]
+        self.qc = queues[3]
+        self.coeffs = shamir[0]
+        self.eval_points = shamir[1]
+        self.h = public[2]
+        self.q = public[0]
+        self.algo = algo
+        self.messages = messages
         
     def make_payment(self):
         # get algorand client
@@ -47,11 +92,22 @@ class client(Process):
         return 1
 
     def run(self):
-        # Make smart contract transaction 
-        if self.make_payment() == -1:
-            return
+        # Setup Interrupt Handlers
+        signal.signal(signal.SIGINT, keyboard_int_handler)
+
+        if self.algo:
+            # Make smart contract transaction 
+            if self.make_payment() == -1:
+                return
+                
         # Hard Coded Values to Start
-        messages = [21, 7, 90]
+        # messages = [21, 7, 90]
+        messages = [random.randint(0, 99), random.randint(0, 99), random.randint(0, 99)]
+
+        if self.messages != None:
+            for i in range(len(self.messages)):
+                messages[i] = self.messages[i]
+
         goal = ((messages[0] * messages[1]) + messages[2]) % self.q
 
         # Generate k, which is private key
@@ -65,13 +121,13 @@ class client(Process):
         s_shares = self.eg.generate_shares(list(self.coeffs), self.s, self.eval_points, self.proc_ID)
 
         # Encrypt the messages
-        # cipher = [self.eg.gmul(messages[0], self.s), self.eg.gmul(messages[1], self.s), self.eg.gmul(messages[2], self.s)]
         cipher = [self.eg.gmul(messages[i], self.s) for i in range(3)]
 
-        print("\nClient Initialization") 
-        print("\tk: {}\ts: {}".format(self.k, self.s))
-        print("\ts_shares[0]: {}\ts_shares[1]: {}\ts_shares[2]: {}".format(s_shares[0], s_shares[1], s_shares[2]))
-        print("\tcipher[0]: {}\tcipher[1]: {}\tcipher[2]: {}".format(cipher[0], cipher[1], cipher[2]))
+        # print("\nClient Initialization") 
+        # print("\tk: {}\ts: {}".format(self.k, self.s))
+        # print("\tmessages[0]: {}\tmessages[1]: {}\tmessages[2]: {}".format(messages[0], messages[1], messages[2]))
+        # print("\ts_shares[0]: {}\ts_shares[1]: {}\ts_shares[2]: {}".format(s_shares[0], s_shares[1], s_shares[2]))
+        # print("\tcipher[0]: {}\tcipher[1]: {}\tcipher[2]: {}".format(cipher[0], cipher[1], cipher[2]))
 
         # Send Secret to Each
         self.q0.put((self.proc_ID, cipher[0]))
@@ -86,11 +142,23 @@ class client(Process):
         vals = []
 
         for i in range(3):
-            _, val = self.qc.get()
+            try:
+                _, val = self.qc.get(timeout=10)
+            except:
+                pass
             vals.append(val)
+            if val == -1:
+                break
 
-        print("\nClient Final Check:")
-        print("\tvals[0]: {}\tvals[1]: {}\tvals[2]: {}".format(vals[0], vals[1], vals[2]))
+        if vals[0] == -1:
+            # TODO: Remove Money
+            os.kill(current_process().pid, signal.SIGTERM)
+            
+
+        # print("\nClient Final Check:")
+        # for i in range(len(vals)):
+        #     print("\tvals[{}]: {}".format(i, vals[i]), end="")
+        # print("")
 
         # Checking what we received is consistent
         temp = vals[0]
@@ -102,39 +170,59 @@ class client(Process):
                 break
         if temp == vals[0]:
             # Consistent Outputs
-            print("\nGoal: {}, Decrypted: {}".format(goal, self.eg.gdiv(vals[0], self.s)))
+            print("\nClient Got:\n\tGoal: {}, Decrypted: {}".format(goal, self.eg.gdiv(vals[0], self.s)))
 
-        print("\n" + str(self.proc_name) + ": ID " + str(self.proc_ID) + " finished")
 
+'''
+    Party Class
+'''
 class party(Process):
-    def __init__(self, proc_name, proc_ID, q0, q1, q2, qc, coeffs, eval_points, q, g):
+    def __init__(self, proc_name, proc_ID, queues, shamir, public_info, algo, adv_values):
         super(party, self).__init__()
         self.proc_name = proc_name
         self.proc_ID = proc_ID
-        self.eg = ElGamal(q, g)
-        self.qlist = [q0, q1, q2, qc]
-        self.coeffs = coeffs
-        self.eval_points = eval_points
+        self.eg = ElGamal(public_info[0], public_info[1])
+        self.qlist = [queues[0], queues[1], queues[2], queues[3]]
+        self.coeffs = shamir[0]
+        self.eval_points = shamir[1]
+        self.algo = algo
+        self.to_kill = adv_values[0]
+        self.stage = adv_values[1]
+        self.peek = adv_values[2]
 
-    def mpc(self, crash=False):
+    def fail_func(self):
+        self.qlist[3].put((self.proc_ID, -1))
+        time.sleep(2)
+        os.kill(current_process().pid, signal.SIGTERM)
+
+    def mpc(self):
         # Get Cipher & Share of the Secret
-        
         c = None
         s = None
-        _, temp = self.qlist[self.proc_ID].get(timeout=10)
-        if type(temp) == tuple:
-            s = temp
-            _, c = self.qlist[self.proc_ID].get(timeout=10)
-        else:
-            c = temp
-            _, s = self.qlist[self.proc_ID].get(timeout=10)
-        s = s[1]
+
+        try:
+            _, temp = self.qlist[self.proc_ID].get(timeout=3)
+            if type(temp) == tuple:
+                s = temp
+                _, c = self.qlist[self.proc_ID].get(timeout=3)
+            else:
+                c = temp
+                _, s = self.qlist[self.proc_ID].get(timeout=3)
+            s = s[1]
+
+        except Exception as e:
+            self.fail_func()
+
+        if self.to_kill == self.proc_ID and self.stage == 0:
+            os.kill(current_process().pid, signal.SIGTERM)
         
         # Shamir my cipher
         cipher_shares = self.eg.generate_shares(list(self.coeffs), c, self.eval_points, self.proc_ID)
 
-        print("\nParty {} Init Values:\n\tc: {}\n\ts: {}\n\tcipher_shares: {}"
-            .format(self.proc_ID, c, s, cipher_shares))
+        # Print
+        if self.proc_ID == self.peek or self.peek == 3:
+            print("\nParty {} Init Values:\n\tc: {}\n\ts: {}\n\tcipher_shares: {}"
+                .format(self.proc_ID, c, s, cipher_shares))
 
         # Share cipher shares
         for i in range(3):
@@ -142,133 +230,112 @@ class party(Process):
                 self.qlist[i].put((self.proc_ID, cipher_shares[i]))
                 time.sleep(1)
 
-        # Get my cipher shares
-        local_cipher_shares = [None] * 3
-        for i in range(3):
-            if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get(timeout=10)
-                local_cipher_shares[id] = val
-            else:
-                local_cipher_shares[self.proc_ID] = cipher_shares[self.proc_ID]
+        try:
+            # Get my cipher shares
+            local_cipher_shares = [None] * 3
+            for i in range(3):
+                if i != self.proc_ID:
+                    id, val = self.qlist[self.proc_ID].get(timeout=3)
+                    local_cipher_shares[id] = val
+                else:
+                    local_cipher_shares[self.proc_ID] = cipher_shares[self.proc_ID]
 
-        # Send Ciphers
-        for i in range(3):
-            if i != self.proc_ID:
-                self.qlist[i].put((self.proc_ID, c))
-                time.sleep(1)
-        
-        # Receive Ciphers
-        cipher_texts = [None] * 3
-        for i in range(3):
-            if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get(timeout=10)
-                cipher_texts[id] = val
-            else:
-                cipher_texts[i] = c
+        except Exception as e:
+            self.fail_func()
 
-        print("\nParty {} Communication 1:\n\tlocal_cipher_shares: {}\n\tcipher_texts: {}"
-            .format(self.proc_ID, local_cipher_shares, cipher_texts))
+        if self.to_kill == self.proc_ID and self.stage == 1:
+            os.kill(current_process().pid, signal.SIGTERM)
 
         # Multiply
-        # m = self.eg.gmul(local_cipher_shares[0][1], local_cipher_shares[1][1])
-        m = self.eg.gmul(cipher_texts[0], cipher_texts[1])
-        m_shares = self.eg.generate_shares(list(self.coeffs), m, list(self.eval_points), self.proc_ID)
+        m = self.eg.gmul(local_cipher_shares[0][1], local_cipher_shares[1][1])
 
-        m_loc_share = None
-        if self.proc_ID == 0:
-            m_loc_share = m_shares[0]
-        elif self.proc_ID == 1:
-            m_loc_share = m_shares[1]
-        elif self.proc_ID == 2:
-            m_loc_share = m_shares[2]
-
-        dec_c0 = self.eg.gdiv(local_cipher_shares[0][1], s)
-        dec_c1 = self.eg.gdiv(local_cipher_shares[1][1], s)
-        dec_m = self.eg.gmul(dec_c0, dec_c1)
-
-        # Decrypt m & c3
-        # dec_m = gdiv(m, s)
-        # dec_m = gdiv(dec_m, s)
+        # Decrypt Share of C2
         dec_c2 = self.eg.gdiv(local_cipher_shares[2][1], s)
 
-        # Add decrypted m & c3
-        # res = self.eg.gadd(m_loc_share[1], dec_c2)
-        res = self.eg.gadd(self.eg.gdiv(m_loc_share[1], s), dec_c2)
-        print("\nParty {} res: {}, m_loc_share[1]: {}, dec_c2: {}"
-            .format(self.proc_ID, res, m_loc_share[1], dec_c2))
+        # Add the Decrypted Shares
+        res = self.eg.gadd(self.eg.gdiv(self.eg.gdiv(m, s), s), dec_c2)
 
-        res = self.eg.gadd(dec_m, dec_c2)
+        # Print
+        if self.proc_ID == self.peek or self.peek == 3:
+            print("\nParty {} res: {}, m: {}, dec_c2: {}"
+                .format(self.proc_ID, res, m, dec_c2))
 
         # Encrypt again
         end = self.eg.gmul(res, s)
 
-        print("\nParty {} Maths:\n\tm: {}\n\tm_shares: {}\n\tm_loc_share: {}\n\tdec_c2: {}\n\tres: {}\n\tend: {}"
-            .format(self.proc_ID, m, m_shares, m_loc_share, dec_c2, res, end))
+        # Print
+        if self.proc_ID == self.peek or self.peek == 3:
+            print("\nParty {} Maths:\n\tm: {}\n\tdec_c2: {}\n\tres: {}\n\tend: {}"
+                .format(self.proc_ID, m, dec_c2, res, end))
 
         # Send Shares to Others
         for i in range(3):
             if i != self.proc_ID:
                 self.qlist[i].put((self.proc_ID, end))
 
-        # Receive end shares
-        end_shares = [None] * 3
-        for i in range(3):
-            if i != self.proc_ID:
-                id, val = self.qlist[self.proc_ID].get(timeout=10)
-                end_shares[id] = (self.eval_points[id], val)
-            else:
-                end_shares[self.proc_ID] = (self.eval_points[self.proc_ID], end)
+        try:
+            # Receive end shares
+            end_shares = [None] * 3
+            for i in range(3):
+                if i != self.proc_ID:
+                    id, val = self.qlist[self.proc_ID].get(timeout=3)
+                    end_shares[id] = (self.eval_points[id], val)
+                else:
+                    end_shares[self.proc_ID] = (self.eval_points[self.proc_ID], end)
 
-        # print("Party " + str(self.proc_ID) + ": Got Result Shares")
+        except Exception as e:
+            self.fail_func()
 
         # Combine results
-        # Check that shamir is doing group math
         end_res = self.eg.reconstruct(end_shares)
-        # print("Party " + str(self.proc_ID) + ": Reconstructed and Got - " + str(end_res))
 
-        print("\nParty {} Final:\n\tend_shares: {}\n\tend_res: {}"
-            .format(self.proc_ID, end_shares, end_res))
+        if self.to_kill == self.proc_ID and self.stage == 2:
+            os.kill(current_process().pid, signal.SIGTERM)
+
+        # Print
+        if self.proc_ID == self.peek or self.peek == 3:
+            print("\nParty {} Final:\n\tend_shares: {}\n\tend_res: {}"
+                .format(self.proc_ID, end_shares, end_res))
 
         # Notify Client
         self.qlist[3].put((self.proc_ID, end_res))
 
-        # Put value on smart contract?
+
     def run(self):
-        # block until the client sends money
-        client = get_client()
-        while self.qlist[self.proc_ID].empty():
-            continue
-        res, addr = self.qlist[self.proc_ID].get() 
-        # received transaction, compute
-        self.mpc()
-        # receive payment
-        if self.proc_ID == 2:
-            lsig_payment_txn(res, addr, PAYMENT, mnemonic_to_pk(party_mnemonic), client)
-        
+        # Set up interrupt handlers
+        signal.signal(signal.SIGINT, keyboard_int_handler)
+
+        if self.algo:
+            # block until the client sends money
+            client = get_client()
+            while self.qlist[self.proc_ID].empty():
+                continue
+            res, addr = self.qlist[self.proc_ID].get(timeout=3) 
+
+            # received transaction, compute
+            self.mpc()
+
+            # receive payment
+            if self.proc_ID == 2:
+                lsig_payment_txn(res, addr, PAYMENT, mnemonic_to_pk(party_mnemonic), client)
+        else:
+            self.mpc()
 
 
-P0_ID = 0
-P1_ID = 1
-P2_ID = 2
-C_ID = 3
-
-def main(t=0):
+'''
+    Main:
+    - Initializes
+    - Contains Driver Code
+'''
+def main(kill=None, stage=None, algo=True, messages=None, peek=None):
     # Runtime Code
-    print("Main Start\n")
+    print("\nStart")
 
-    # Set Random Seed
-    random.seed(time.time_ns())
-    q = number.getPrime(1024)
-    # q = 11
-    g = random.randint(2, q)
-    # g = 5
+    # Preparation
+    doagain = False
+    q, g = prepare_elgamal()
     eg = ElGamal(q, g)
-
-    # Set Globals
-    coeffs = eg.coeff(2)
-    coeffs = [0]
-    eval_points = eg.get_eval_points(3)
-    # eval_points = [1, 2, 3]
+    coeffs, eval_points = prepare_shamir(eg)
 
     # Setup IPC
     q0 = Queue(10)
@@ -279,69 +346,128 @@ def main(t=0):
     # Party Stuff
     parties = []
     a = eg.gen_key(q)
-    # a = 0
     h = pow(g, a, q)
-    # h = 4
+
+    adv_values = (kill, stage, peek)
+    queues = ( q0, q1, q2, qc )
+    shamir_info = ( coeffs, eval_points )
+    public_info = ( q, g, h )
 
     print("\nMain Initialize Values:")
-    print("\ta: {}, h: {}, g: {}, q: {}".format(a, h, g, q))
-    print("\tCoeff: {}".format(list(coeffs)))
-    print("\tEval Points: {}".format(eval_points))
+    print("\tq: {}, g: {}, h: {}".format(q, g, h))
 
     # Party 0
-    party_proc = party("Party " + str(0), 0, q0, q1, q2, qc, coeffs, eval_points, q, g)
+    party_proc = party("Party " + str(0), 0, queues, shamir_info, public_info, algo, adv_values)
     parties.append(party_proc)
 
     # Party 1
-    party_proc = party("Party " + str(1), 1, q0, q1, q2, qc, coeffs, eval_points, q, g)
+    party_proc = party("Party " + str(1), 1, queues, shamir_info, public_info, algo, adv_values)
     parties.append(party_proc)
 
     # Party 2
-    party_proc = party("Party " + str(2), 2, q0, q1, q2, qc, coeffs, eval_points, q, g)
+    party_proc = party("Party " + str(2), 2, queues, shamir_info, public_info, algo, adv_values)
     parties.append(party_proc)
 
     try: 
+        # Start the Parties
         for i in range(3):
             parties[i].start()
 
-        # Client Stuff
-        client_prc = client("Client", C_ID, q0, q1, q2, qc, coeffs, eval_points, h, q, g)
+        # Client Create & Start
+        client_prc = client("Client", C_ID, queues, shamir_info, public_info, algo, messages)
         client_prc.start()
-        if t != 0:
-            print("Sleeping {} seconds".format(t))
-            time.sleep(t)
-            print("Alarm Triggered! Killing p0")
-            parties[0].kill()
-            
-    except:
-        # Timeout occur?
-        print("exception!")
+
+        # Wait for everything to finish
         for i in range(3):
-            parties[i].kill()
+            parties[i].join()
+        client_prc.join()
             
-        # for i in range(3):
-        #     parties[i].start(True)
+    except Exception as e:
+        # Exception Happened
+        print("Exception:\n{}".format(e))
+    
+    # Check for failure
+    for i in range(4):
+        while not queues[i].empty():
+            _, val = queues[i].get()
+            if val == -1:
+                doagain = True
 
-        # # Client Stuff
-        # client_prc = client("Client", C_ID, q0, q1, q2, qc, coeffs, eval_points, h, q, g)
-        # client_prc.start()
-        
+    if doagain:
+        # Force alive
+        adv_values = (-1, -1, peek)
 
-    # Wait for everything to finish
-    for i in range(3):
-        parties[i].join()
-    client_prc.join()
+        # Remove old parties
+        parties.clear()
 
-    print("\nMain Exit")
+        # Restart Function
+        # Party 0
+        party_proc = party("Party " + str(0), 0, queues, shamir_info, public_info, algo, adv_values)
+        parties.append(party_proc)
 
+        # Party 1
+        party_proc = party("Party " + str(1), 1, queues, shamir_info, public_info, algo, adv_values)
+        parties.append(party_proc)
+
+        # Party 2
+        party_proc = party("Party " + str(2), 2, queues, shamir_info, public_info, algo, adv_values)
+        parties.append(party_proc)
+
+        # Start the Parties
+        for i in range(3):
+            parties[i].start()
+
+        # Client Create & Start
+        client_prc = client("Client", C_ID, queues, shamir_info, public_info, algo, messages)
+        client_prc.start()
+
+        # Wait for everything to finish
+        for i in range(3):
+            parties[i].join()
+        client_prc.join()
+
+
+    print("\nExit")
+
+'''
+    __name__:
+    - Parses Arguments
+    - Starts Driver Code
+'''
 if __name__ == "__main__":
  
     # Initialize parser
     parser = argparse.ArgumentParser()
-    parser.add_argument("-k", "--kill", help = "time (sec) before adversary crashes")
+    parser.add_argument("-m", "--messages", nargs = '*', help = "messages to pass in, up to 3, defaults to random")
+    parser.add_argument("-a", "--algo", help = "default True, use the algorand smart contract")
+    parser.add_argument("-k", "--kill", help = "party to kill, either 0, 1, 2")
+    parser.add_argument("-s", "--stage", help = '''
+        stage to kill, either:
+        0 - after receiving cipher and share of key,
+        1 - after sharing during MPC,
+        2 - after computation, but before sending result,
+        3 - after receiving client payment''')
+
+    parser.add_argument("-p", "--peek", help = "party to watch, either 0, 1, 2")
     args = parser.parse_args()
     
-    alarm = 0
+    kill = -1
+    peek = -1
+    stage = -1
+    algo = True
+    messages = None
     if args.kill:
-        alarm = args.kill
-    main(alarm)
+        kill = int(args.kill)
+    if args.algo:
+        algo = str(args.algo).lower == 'true'
+    if args.messages:
+        messages = [ int(x) for x in args.messages ]
+    if args.peek:
+        peek = int(args.peek)
+    if args.stage:
+        stage = int(args.stage)
+
+    # Set up signal handlers
+    signal.signal(signal.SIGINT, keyboard_int_handler)
+    
+    main(kill, stage, algo, messages, peek)
