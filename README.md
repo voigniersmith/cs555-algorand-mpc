@@ -54,17 +54,23 @@ python3 main.py -h
 
 ## Installation
 
-Use the github i guess.
+Use the github i guess. 
+
+## Initialization
+
+In the `conf.py` file, update the `party_mnemonic` and `client_mnemonic` variables to be the mnemonic of the accounts. To find the mnemonic of an account, run `goal account export -a <account_address>`.
 
 ## Languages & Libraries
 
 *Languages*: Python & PyTeal  
 
-*Libraries*: multiprocessing, algosdk.future, algosdk, algosdk.v2client, pyteal, Crypto.Util
+*Libraries*: multiprocessing, algosdk.future, algosdk, algosdk.v2client, pyteal
 
-## PyTeal
-
-Edwin please
+*Additional Libraries To Install*:
+```
+pip install pycryptodome
+pip install argparse
+```
 
 ## Protocol
 
@@ -86,10 +92,16 @@ To do this, two protocols are used, ElGamal & Shamir's Secret Sharing.
 *Goal*  
 No party should be able to learn anything about $m_1$, $m_2$, $m_3$, $(m_1 \cdot m_2)$, or $(m_1 \cdot m_2) + m_3$.  
 
-TODO: I also think there should be something about how an active adversary wouldn't be able to break the protocol given that one of the parties is killed.
+A singular passive adversary (party 0) should not be able to learn any additional information.
+
+A client will only be able to get $(m_1 \cdot m_2) + m_3$ if and only if they pay 10,000 Algos
+
+The system should tolerate a single crash
 
 *Analysis*  
-How do I do a security analysis on this
+Our system uses MPC on the encrypted values that $P_1$, $P_2$, and $P_3$ receive. All values $c_1$, $c_2$, and $c_3$ are shared between the parties using shares. The shares are shamir shared with a function with degree at most $t = 1$. The MPC step includes decryption of cipher shares, computation using those shares, and encrypting the final values before sending messages to the client.
+
+The Client must create an escrow transaction and share the address of the escrow with the parties. The transaction forces the escrow to contain 10,000 Algorand and the party to have enough Algorand in the client account. The client would not be able to send an escrow address to the client if it’s not created, ensuring the client cannot get $(m_1 \cdot m_2) + m_3$ without paying. The party will be able to withdraw the money using the escrow address.
 
 ## Virtual Python Environment
 
@@ -99,6 +111,9 @@ python -m venv venv
 
 # Activate a venv
 source ./venv/bin/activate
+
+# Download requirements
+pip install -r ./pyteal-course/requirements.txt
 
 # Stop a venv
 deactivate
