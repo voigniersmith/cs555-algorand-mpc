@@ -90,13 +90,10 @@ To do this, two protocols are used, ElGamal & Shamir's Secret Sharing.
 ## Security
 
 *Goal*  
-No party should be able to learn anything about $m_1$, $m_2$, $m_3$, $(m_1 \cdot m_2)$, or $(m_1 \cdot m_2) + m_3$.  
-
-A singular passive adversary (party 0) should not be able to learn any additional information.
-
-A client will only be able to get $(m_1 \cdot m_2) + m_3$ if and only if they pay 10,000 Algos
-
-The system should tolerate a single crash
+- No party should be able to learn anything about $m_1$, $m_2$, $m_3$, $(m_1 \cdot m_2)$, or $(m_1 \cdot m_2) + m_3$.  
+- A singular passive adversary (party 0) should not be able to learn any additional information.
+- A client will only be able to get $(m_1 \cdot m_2) + m_3$ if and only if they pay 10,000 Algos
+- The system should tolerate a single crash
 
 *Analysis*  
 Our system uses MPC on the encrypted values that $P_1$, $P_2$, and $P_3$ receive. All values $c_1$, $c_2$, and $c_3$ are shared between the parties using shares. The shares are shamir shared with a function with degree at most $t = 1$. The MPC step includes decryption of cipher shares, computation using those shares, and encrypting the final values before sending messages to the client.
