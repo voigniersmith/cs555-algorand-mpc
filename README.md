@@ -58,19 +58,9 @@ Use the github i guess.
 
 ## Languages & Libraries
 
-Languages
+*Languages*: Python & PyTeal  
 
-- Python
-- PyTeal
-
-Libraries
-
-- multiprocessing
-- algosdk.future
-- algosdk
-- algosdk.v2client
-- pyteal
-- Crypto.Util
+*Libraries*: multiprocessing, algosdk.future, algosdk, algosdk.v2client, pyteal, Crypto.Util
 
 ## PyTeal
 
