@@ -102,10 +102,14 @@ class client(Process):
         if self.send_stuff() == -1:
             # party died
 
+            print("in here")
+            val = None
             while True:
-                val = self.qc.get()
+                if not self.qc.empty():
+                    val = self.qc.get(False)
                 if val == (-99, -99):
                     break
+            print("out of here")
             
             if self.algo:
                 print("\nClient re-sending addresses")
@@ -160,20 +164,18 @@ class client(Process):
         self.q2.put((self.proc_ID, s_shares[2]))
 
         vals = []
-        val = None
         for i in range(3):
             # Pull that something
             _, val = self.qc.get()
 
+            print(val)
+            
             # if error
             if val == -1:
-                break
+                return -1
 
             # if no error
             vals.append(val)
-
-        if val == -1:
-            return -1
             
 
         # print("\nClient Final Check:")
@@ -184,6 +186,8 @@ class client(Process):
         # Checking what we received is consistent
         temp = vals[0]
         for i in range(1, len(vals)):
+            if vals[i] < 0:
+                return -1
             if temp != vals[i]:
                 # Wrong Outputs
                 print("\n\tIncorrect Values")
@@ -237,6 +241,7 @@ class party(Process):
 
         if self.to_kill == self.proc_ID and self.stage == 0:
             self.qlist[3].put((self.proc_ID, -1))
+            time.sleep(2)
             os.kill(current_process().pid, signal.SIGTERM)
         
         # Shamir my cipher
@@ -268,6 +273,7 @@ class party(Process):
 
         if self.to_kill == self.proc_ID and self.stage == 1:
             self.qlist[3].put((self.proc_ID, -1))
+            time.sleep(2)
             os.kill(current_process().pid, signal.SIGTERM)
 
         # Multiply
@@ -315,6 +321,7 @@ class party(Process):
 
         if self.to_kill == self.proc_ID and self.stage == 2:
             self.qlist[3].put((self.proc_ID, -1))
+            time.sleep(2)
             os.kill(current_process().pid, signal.SIGTERM)
 
         # Print
@@ -406,6 +413,7 @@ def main(kill=None, stage=None, algo=True, messages=None, peek=None):
             parties[i].join()
 
         val = [parties[0].exitcode, parties[1].exitcode, parties[2].exitcode] 
+        print(val)
 
         if val != [0, 0, 0]:
             # for p in parties:
