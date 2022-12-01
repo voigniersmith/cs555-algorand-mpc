@@ -81,7 +81,6 @@ class client(Process):
             res, addr = compile_smart_signature(client, compiled)
             amt = PAYMENT
             result = payment_transaction(client_mnemonic, amt, addr, client)
-            # TODO: something with result
             self.q0.put((res, addr))
             self.q1.put((res, addr))
             self.q2.put((res, addr))
@@ -102,10 +101,18 @@ class client(Process):
         
         if self.send_stuff() == -1:
             # party died
-            time.sleep(3)
-            self.q0.put((res, addr))
-            self.q1.put((res, addr))
-            self.q2.put((res, addr))
+
+            while True:
+                val = self.qc.get()
+                if val == (-99, -99):
+                    break
+            
+            if self.algo:
+                print("\nClient re-sending addresses")
+                # send stuffs again
+                self.q0.put((res, addr))
+                self.q1.put((res, addr))
+                self.q2.put((res, addr))
             self.send_stuff()
         
 
@@ -153,20 +160,20 @@ class client(Process):
         self.q2.put((self.proc_ID, s_shares[2]))
 
         vals = []
-
+        val = None
         for i in range(3):
-            try:
-                _, val = self.qc.get(timeout=10)
-            except:
-                pass
-            vals.append(val)
+            # Pull that something
+            _, val = self.qc.get()
+
+            # if error
             if val == -1:
                 break
 
-        if vals[0] == -1:
-            # TODO: Remove Money
+            # if no error
+            vals.append(val)
+
+        if val == -1:
             return -1
-            # os.kill(current_process().pid, signal.SIGTERM)
             
 
         # print("\nClient Final Check:")
@@ -215,19 +222,21 @@ class party(Process):
         s = None
 
         try:
-            _, temp = self.qlist[self.proc_ID].get(timeout=3)
+            _, temp = self.qlist[self.proc_ID].get(timeout=10)
             if type(temp) == tuple:
                 s = temp
-                _, c = self.qlist[self.proc_ID].get(timeout=3)
+                _, c = self.qlist[self.proc_ID].get(timeout=10)
             else:
                 c = temp
-                _, s = self.qlist[self.proc_ID].get(timeout=3)
+                _, s = self.qlist[self.proc_ID].get(timeout=10)
             s = s[1]
 
         except Exception as e:
             self.fail_func()
+        
 
         if self.to_kill == self.proc_ID and self.stage == 0:
+            self.qlist[3].put((self.proc_ID, -1))
             os.kill(current_process().pid, signal.SIGTERM)
         
         # Shamir my cipher
@@ -258,6 +267,7 @@ class party(Process):
             self.fail_func()
 
         if self.to_kill == self.proc_ID and self.stage == 1:
+            self.qlist[3].put((self.proc_ID, -1))
             os.kill(current_process().pid, signal.SIGTERM)
 
         # Multiply
@@ -304,6 +314,7 @@ class party(Process):
         end_res = self.eg.reconstruct(end_shares)
 
         if self.to_kill == self.proc_ID and self.stage == 2:
+            self.qlist[3].put((self.proc_ID, -1))
             os.kill(current_process().pid, signal.SIGTERM)
 
         # Print
@@ -324,7 +335,7 @@ class party(Process):
             client = get_client()
             while self.qlist[self.proc_ID].empty():
                 continue
-            res, addr = self.qlist[self.proc_ID].get(timeout=3) 
+            res, addr = self.qlist[self.proc_ID].get(timeout=8) 
 
             # received transaction, compute
             self.mpc()
@@ -346,7 +357,6 @@ def main(kill=None, stage=None, algo=True, messages=None, peek=None):
     print("\nStart")
 
     # Preparation
-    doagain = False
     q, g = prepare_elgamal()
     eg = ElGamal(q, g)
     coeffs, eval_points = prepare_shamir(eg)
@@ -394,52 +404,48 @@ def main(kill=None, stage=None, algo=True, messages=None, peek=None):
         # Wait for everything to finish
         for i in range(3):
             parties[i].join()
-        client_prc.join()
+
+        val = [parties[0].exitcode, parties[1].exitcode, parties[2].exitcode] 
+
+        if val != [0, 0, 0]:
+            # for p in parties:
+            #     os.kill(p.pid, signal.SIGTERM)
+            
+            parties.clear()
+            adv_values = (-1, -1, peek)
+
+            for i in range(len(queues) - 1):
+                while not queues[i].empty():
+                    queues[i].get()
+
+            # Party 0
+            party_proc = party("Party " + str(0), 0, queues, shamir_info, public_info, algo, adv_values)
+            parties.append(party_proc)
+
+            # Party 1
+            party_proc = party("Party " + str(1), 1, queues, shamir_info, public_info, algo, adv_values)
+            parties.append(party_proc)
+
+            # Party 2
+            party_proc = party("Party " + str(2), 2, queues, shamir_info, public_info, algo, adv_values)
+            parties.append(party_proc)
+
+            # Start the Parties
+            print("\nRestarting Processes")
+            for i in range(3):
+                parties[i].start()
+
+            queues[C_ID].put((-99, -99))
+            # Wait for everything to finish
+            for i in range(3):
+                parties[i].join()
+
+
+        client_prc.join()  
             
     except Exception as e:
         # Exception Happened
         print("Exception:\n{}".format(e))
-    
-    # Check for failure
-    for i in range(4):
-        while not queues[i].empty():
-            _, val = queues[i].get()
-            if val == -1:
-                doagain = True
-
-    if doagain:
-        # Force alive
-        adv_values = (-1, -1, peek)
-
-        # Remove old parties
-        parties.clear()
-
-        # Restart Function
-        # Party 0
-        party_proc = party("Party " + str(0), 0, queues, shamir_info, public_info, algo, adv_values)
-        parties.append(party_proc)
-
-        # Party 1
-        party_proc = party("Party " + str(1), 1, queues, shamir_info, public_info, algo, adv_values)
-        parties.append(party_proc)
-
-        # Party 2
-        party_proc = party("Party " + str(2), 2, queues, shamir_info, public_info, algo, adv_values)
-        parties.append(party_proc)
-
-        # Start the Parties
-        for i in range(3):
-            parties[i].start()
-
-        # Client Create & Start
-        client_prc = client("Client", C_ID, queues, shamir_info, public_info, algo, messages)
-        client_prc.start()
-
-        # Wait for everything to finish
-        for i in range(3):
-            parties[i].join()
-        client_prc.join()
-
 
     print("\nExit")
 
@@ -459,8 +465,7 @@ if __name__ == "__main__":
         stage to kill, either:
         0 - after receiving cipher and share of key,
         1 - after sharing during MPC,
-        2 - after computation, but before sending result,
-        3 - after receiving client payment''')
+        2 - after computation, but before sending result''')
 
     parser.add_argument("-p", "--peek", help = "party to watch, either 0, 1, 2")
     args = parser.parse_args()

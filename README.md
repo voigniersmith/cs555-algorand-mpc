@@ -48,8 +48,7 @@ python3 main.py -h
  -s, --stage        stage to kill, either:
                         0 - after receiving cipher and share of key,
                         1 - after sharing during MPC,
-                        2 - after computation, but before sending result,
-                        3 - after receiving client payment
+                        2 - after computation, but before sending result
 ```
 
 ## Installation
