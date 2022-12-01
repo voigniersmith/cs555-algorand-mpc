@@ -1,3 +1,9 @@
+## Setup
+
+1. update conf.py with the party account mnemonic and client account mnemonic
+- This can be done by running `goal account export -a <addr>` from the sandbox
+
+
 PyTeal Course Comands
 
 // Initial venv setup
